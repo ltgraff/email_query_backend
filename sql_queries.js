@@ -89,7 +89,7 @@ async function display_emails(pool, func_arg) {
 		}
 
 		if (cmd === "prev" || cmd === "next") {
-			if (build_prev_next(cmd, first, last, db_query) < 0) {
+			if (build_prev_next(cmd, first, last, aaaa_db_query) < 0) {
 				console.log("build_prev_next failed");
 				return -1;
 			}
