@@ -8,7 +8,7 @@ import express from 'express'; // Importing express as an ES module
 const app = express();
 const port = 3001;
 
-import * as sql from './sql_queries.js'; // Importing all exports from 'sql_queries' module
+import * as sql from './sql_queries.mjs'; // Importing all exports from 'sql_queries' module
 import pg from 'pg';
 
 //pg.types.setTypeParser(1114, function (stringValue) {
@@ -18,7 +18,7 @@ import pg from 'pg';
 let m_pool;
 
 
-import { error_throw, error_set, error_append, error_disp } from './error_handler.js';
+import { error_throw, error_set, error_append, error_disp } from './error_handler.mjs';
 
 function err_throw(error) {
 	return error_throw(error, import.meta.url);

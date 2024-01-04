@@ -8,6 +8,25 @@ pg.types.setTypeParser(1114, function (stringValue) {
 });
 */
 
+
+import { error_throw, error_set, error_append, error_disp } from './error_handler.mjs';
+
+function err_throw(error) {
+	return error_throw(error, import.meta.url);
+}
+
+function err_set(error) {
+	return error_set(error, import.meta.url);
+}
+
+function err_append(error) {
+	return error_append(error, import.meta.url);
+}
+
+function err_disp(error) {
+	return error_disp(error, import.meta.url);
+}
+
 const display_contacts = () => {
 	return new Promise(function(resolve, reject) {
 		pool.query('SELECT * FROM CONTACT_EMAIL ORDER BY email', (error, results) => {
@@ -20,10 +39,17 @@ const display_contacts = () => {
 }
 
 function is_date_valid(q) {
-	if (!q) {
-		console.log("q is not");
+	let count = 0;
+	if (!q)
 		return 0;
+	for (let i = 0; i < q.length; i++) {
+		if (q[i] == "-")
+			count++;
 	}
+	if (count != 2)
+		return 0;
+	if (q.length < 10)
+		return 0;
 	return 1;
 }
 
@@ -40,14 +66,24 @@ function build_prev_next(cmd, first, last, r_query) {
 	}
 	if (cmd === "prev") {
 		if (!is_date_valid(last))
-			return -1;
+			return err_set("date is invalid: "+last);
 		r_query.qstr += "received <= '"+last+"'";
 	} else {
 		if (!is_date_valid(first))
-			return -1;
+			return err_append("date is invalid: "+first);
 		r_query.qstr += "received >= '"+first+"'";
 	}
 	return 0;
+}
+//2024-01-01T05:00:00.000Z
+function format_date(date_str) {
+	let ret = "";
+
+	ret = date_str.substring(0, 10);
+
+	console.log("original: *"+date_str+"*");
+	console.log("converted: *"+ret+"*");
+	return ret;
 }
 
 //SELECT '2023-03-15 12:00:00'::timestamp AT TIME ZONE 'UTC' AT TIME ZONE 'America/New_York' AS est_timestamp;
@@ -89,10 +125,8 @@ async function display_emails(pool, func_arg) {
 		}
 
 		if (cmd === "prev" || cmd === "next") {
-			if (build_prev_next(cmd, first, last, aaaa_db_query) < 0) {
-				console.log("build_prev_next failed");
-				return -1;
-			}
+			if (build_prev_next(cmd, first, last, db_query) < 0)
+				return err_throw("build_prev_next failed");
 		}
 
 		// to, from, subject
@@ -124,6 +158,24 @@ async function display_emails(pool, func_arg) {
 			db_query.qstr += " em_subject like '%"+subject+"%'";
 		}
 
+		if (date_start && is_date_valid(date_start)) {
+			if (db_query.where_flag) {
+				db_query.qstr += " and";
+			} else {
+				db_query.qstr += " where";
+				db_query.where_flag = 1;
+			}
+			db_query.qstr += " received > '"+format_date(date_start)+"'";
+		}
+		if (date_end && is_date_valid(date_end)) {
+			if (db_query.where_flag) {
+				db_query.qstr += " and";
+			} else {
+				db_query.qstr += " where";
+				db_query.where_flag = 1;
+			}
+			db_query.qstr += " received < '"+format_date(date_end)+"'";
+		}
 		
 		if (cmd === "next") {
 			db_query.qstr +=" order by received asc limit 70";
