@@ -58,14 +58,20 @@ function set_defaults() {
 	m_eid_list = [ ];
 }
 
-function check_valid_keys(func_arg) {
-	if (func_arg.cmd && func_arg.cmd.length > 9999)
+function check_valid_keys(items) {
+	if (!items || !items.body)
 		return 0;
-	return 1;
-}
-
-function check_valid(q) {
-	return (q.length > 0 && q.length < 999999)
+	let tmp = JSON.stringify(items.body);
+	if (!tmp)
+		return 0;
+	tmp = tmp.replace(/:/g, ",");
+	tmp = tmp.split(",");
+	if (tmp.length < 10 || !tmp[1])
+		return 0;
+	tmp[1] = tmp[1].replace(/\"/g, "");
+	if (tmp[1] === "cur" || tmp[1] === "prev" || tmp[1] === "next")
+		return 1;
+	return 0;
 }
 
 app.use(express.json())
@@ -79,6 +85,12 @@ app.use(function (req, res, next) {
 app.post('/api/send-data', (req, res) => {
 	console.log("in /api/send-data function");
 
+	if (!check_valid_keys(req)) {
+		err_disp("app.post: check_valid_keys failed");
+		res.status(500).send("Invalid key data");
+		return;
+	}
+
 	let func_arg = {
 		cmd:		req.body.key1,
 		to:			req.body.key2,
@@ -90,12 +102,6 @@ app.post('/api/send-data', (req, res) => {
 		last:		req.body.key8,
 		eid_list:	req.body.key9,
 	};
-
-	if (!check_valid_keys(func_arg)) {
-		err_disp("app.post: check_valid_keys failed");
-		res.status(500).send("Invalid key data");
-		return;
-	}
 
 	sql.display_emails(m_pool, func_arg)
 		.then(response => {

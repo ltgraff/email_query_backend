@@ -40,15 +40,10 @@ const display_contacts = () => {
 
 function is_date_valid(q) {
 	let count = 0;
-	if (!q)
+	if (!q || q.length < 10)
 		return 0;
-	for (let i = 0; i < q.length; i++) {
-		if (q[i] == "-")
-			count++;
-	}
+	count = Array.from(q).filter((item) => item === "-").length;
 	if (count != 2)
-		return 0;
-	if (q.length < 10)
 		return 0;
 	return 1;
 }
