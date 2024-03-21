@@ -1,5 +1,10 @@
 // sql_queries.js
 
+/*
+
+select * from (select sms_message.readable_date as received, sms_message.phone from sms_message union select email_message.received, email_message.em_from from email_message) as first order by received desc limit 2200;
+
+*/
 
 /*
 import pg from 'pg';
@@ -8,6 +13,22 @@ pg.types.setTypeParser(1114, function (stringValue) {
 });
 */
 
+
+/*
+
+combine emails with messages by date:
+
+
+works:
+
+select sms_message.readable_date, sms_message.phone, email_message.received, email_message.em_from from sms_message left join email_message on sms_message.readable_date=email_message.received union select email_message.received, sms_message.phone, sms_message.readable_date, email_message.em_from from sms_message right join email_message on sms_message.readable_date=email_message.received order by readable_date desc limit 1240;
+
+
+works:
+select sms_message.phone as from, email_message.em_to as to, sms_message.readable_date, sms_message.mid as id from sms_message left join email_message on sms_message.readable_date=email_message.received union select email_message.em_from, email_message.em_to, email_message.received, email_message.eid from sms_message right join email_message on sms_message.readable_date=email_message.received order by readable_date desc limit 1240;
+
+at time zone 'UTC' at time zone 'America/New_York'
+*/
 
 import { error_throw, error_set, error_append, error_disp } from './error_handler.mjs';
 
@@ -81,6 +102,12 @@ function format_date(date_str) {
 	return ret;
 }
 
+// When either a specific message or email is selected
+async function select_item(pool, func_arg) {
+		let db_query = { qstr: "", where_flag: 0};
+
+}
+
 //SELECT '2023-03-15 12:00:00'::timestamp AT TIME ZONE 'UTC' AT TIME ZONE 'America/New_York' AS est_timestamp;
 async function display_emails(pool, func_arg) {
 //const display_emails = async (pool, func_arg) => {
@@ -100,15 +127,47 @@ async function display_emails(pool, func_arg) {
 
 		//cmd, to, from, subject, date_start, date_end, first, last, eid_list
 
-		if (cmd === "")
-			return
+		if (cmd === "") {
+			return;
+		} else if (cmd === "select email") {
+			console.log("command: select email");
+
+			db_query.qstr = "select em_from, em_to, em_subject, received at time zone \'UTC\' at time zone \'America/New_York\' as received, em_body from email_message where eid='"+eid_list+"'";
+
+			console.log(db_query.qstr);
+
+
+			//db_query.qstr = "select "+eid_list+" as id, em_from as from, em_to as to, em_subject as subject, received at time zone \'UTC\' at time zone \'America/New_York\' as received from email_message";
+
+			let results = await pool.query(db_query.qstr);
+
+			return results.rows;
+
+		} else if (cmd === "select message") {
+			console.log("command: select message");
+			return;
+		} else {
+			db_query.qstr = "select eid as id, em_from as from, em_to as to, em_subject as subject, received at time zone \'UTC\' at time zone \'America/New_York\' as received from email_message";
+		}
+
+	/*
+	select sms_message.phone as from, email_message.em_to as to, sms_message.readable_date at time zone 'UTC' at time zone 'America/New_York' as readable_date, sms_message.mid as id from sms_message left join email_message on sms_message.readable_date=email_message.received union select email_message.em_from, email_message.em_to, email_message.received at time zone 'UTC' at time zone 'America/New_York', email_message.eid from sms_message right join email_message on sms_message.readable_date=email_message.received order by readable_date desc limit 1250;
+*/
 
 		console.log("command: "+cmd+", to: "+to+", from: "+from+", subject: "+subject+", date_start: "+date_start+", date_end: "+date_end+", first: "+first+", last: "+last+", eid_list: "+eid_list)
 
 		eid_list = [ ];
 
-		db_query.qstr = "select eid, em_body, em_from, em_to, em_subject, received at time zone \'UTC\' at time zone \'America/New_York\' as received from email_message";
+		//db_query.qstr = "select eid as id, em_from as from, em_to as to, em_subject as subject, received at time zone \'UTC\' at time zone \'America/New_York\' as received from email_message";
 
+		//db_query.qstr = "select sms_message.phone as from, email_message.em_to as to, sms_message.phone as subject, sms_message.readable_date at time zone 'UTC' at time zone 'America/New_York' as readable_date, sms_message.mid as id from sms_message left join email_message on sms_message.readable_date=email_message.received union select email_message.em_from, email_message.em_to, email_message.em_subject, email_message.received at time zone 'UTC' at time zone 'America/New_York', email_message.eid from sms_message right join email_message on sms_message.readable_date=email_message.received";
+
+
+	/*
+
+select sms_message.mid, sms_message.phone as from, email_message.em_to as to, sms_message.phone as subject, sms_message.readable_date at time zone 'UTC' at time zone 'America/New_York' as readable_date, sms_message.mid as id from sms_message left join email_message on sms_message.readable_date=email_message.received where readable_date < '2023-10-07T09:41:50.000Z' union select email_message.eid, email_message.em_from, email_message.em_to, email_message.em_subject, email_message.received at time zone 'UTC' at time zone 'America/New_York', email_message.eid from sms_message right join email_message on sms_message.readable_date=email_message.received WHERE readable_date < '2023-10-07T09:41:50.000Z' order by readable_date desc limit 70;
+
+	*/
 		if (eid_list !== null && eid_list.length > 0) {
 			var i;
 			tmp_str=" where eid not in ( ";

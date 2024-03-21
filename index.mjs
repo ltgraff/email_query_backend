@@ -69,7 +69,7 @@ function check_valid_keys(items) {
 	if (tmp.length < 10 || !tmp[1])
 		return 0;
 	tmp[1] = tmp[1].replace(/\"/g, "");
-	if (tmp[1] === "cur" || tmp[1] === "prev" || tmp[1] === "next")
+	if (tmp[1] === "cur" || tmp[1] === "prev" || tmp[1] === "next" || tmp[1] === "select email")
 		return 1;
 	return 0;
 }
