@@ -5,8 +5,14 @@ import db_pool from './db_pool.json' assert { type: "json" };
 
 
 import express from 'express'; // Importing express as an ES module
+
+import https from 'https';
+import fs from 'fs';
+
+import cors from 'cors';
+
+
 const app = express();
-const port = 3001;
 
 import * as sql from './sql_queries.mjs'; // Importing all exports from 'sql_queries' module
 import pg from 'pg';
@@ -17,6 +23,10 @@ import pg from 'pg';
 
 let m_pool;
 
+const options = {
+	key: fs.readFileSync('server.key'),
+    cert: fs.readFileSync('server.crt')
+};
 
 import { error_throw, error_set, error_append, error_disp } from './error_handler.mjs';
 
@@ -36,6 +46,9 @@ function err_disp(error) {
 	return error_disp(error, import.meta.url);
 }
 
+var m_app_name = "message_backend";
+var m_app_version = "1.0a";
+var m_app_key = "2024_03_31-message_backend";
 var m_command = "cur";
 var m_from = null
 var m_to = null
@@ -58,7 +71,44 @@ function set_defaults() {
 	m_eid_list = [ ];
 }
 
-function check_valid_keys(items) {
+function version_string() {
+	let ret = m_app_name+" version "+m_app_version;
+	return ret;
+}
+	
+function api_check_key(api_key) {
+	if (m_app_key === api_key)
+		return 1;
+	return 0;
+}
+
+function cmd_type_is_valid(part1, part2) {
+	if (!part1 || !part2)
+		return 0;
+	if (part1 !== "email" && part1 !== "sms") 
+		return 0;
+	if (part2.length < 3)
+		return 0;
+	return 1;
+}
+
+function cmd_parse_initial(cmd) {
+	console.log("cmd_parse_initial: *"+cmd+"*");
+	let i = cmd.indexOf(" ");
+	console.log("found at: "+i);
+	if (i < 2 || cmd.length-i < 3)
+		return null;
+	return [cmd.slice(0, i), cmd.slice(i+1)];
+}
+
+function check_valid_commands(msg_cmd) {
+	if (msg_cmd === "cur" || msg_cmd === "prev" || msg_cmd === "next" || msg_cmd === "select")
+		return 1;
+	return 0;
+	
+
+
+/*
 	if (!items || !items.body)
 		return 0;
 	let tmp = JSON.stringify(items.body);
@@ -72,22 +122,31 @@ function check_valid_keys(items) {
 	if (tmp[1] === "cur" || tmp[1] === "prev" || tmp[1] === "next" || tmp[1] === "select email")
 		return 1;
 	return 0;
+*/
 }
 
+app.use(cors());
 app.use(express.json())
 app.use(function (req, res, next) {
-	res.setHeader('Access-Control-Allow-Origin', 'http://localhost:3000');
+	res.setHeader('Access-Control-Allow-Origin', '*');
+	//res.setHeader('Access-Control-Allow-Origin', 'http://localhost:3000, https://localhost:3000');
 	res.setHeader('Access-Control-Allow-Methods', 'GET,POST,PUT,DELETE,OPTIONS');
-	res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Access-Control-Allow-Headers');
+	res.setHeader('Access-Control-Allow-Headers', '*');
+	res.setHeader('Access-Control-Allow-Credentials', '*');
+	//res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Access-Control-Allow-Headers, x-api-key');
 	next();
 });
 
 app.post('/api/send-data', (req, res) => {
 	console.log("in /api/send-data function");
+	console.log("received: *"+JSON.stringify(req.body)+"*");
 
-	if (!check_valid_keys(req)) {
-		err_disp("app.post: check_valid_keys failed");
-		res.status(500).send("Invalid key data");
+	const api_key = req.headers['x-api-key'];
+
+	console.log("api_key: *"+api_key+"*");
+	if (!api_check_key(api_key)) {
+		err_disp("app.post: api key mismatch");
+		res.status(500).send(version_string()+" Invalid api-key data");
 		return;
 	}
 
@@ -103,6 +162,22 @@ app.post('/api/send-data', (req, res) => {
 		eid_list:	req.body.key9,
 	};
 
+	const [msg_type, msg_cmd] = cmd_parse_initial(func_arg.cmd);
+
+	console.log("after cmd split: *"+msg_type+"* cmd: *"+msg_cmd+"*");
+
+	if (!cmd_type_is_valid(msg_type, msg_cmd)) {
+		err_disp("app.post: cmd_type_is_valid failed");
+		res.status(500).send(version_string()+" Invalid req data");
+		return;
+	}
+	if (!check_valid_commands(msg_cmd)) {
+		res.status(500).send(version_string()+" Invalid command in request data");
+		err_disp("app.post: check_valid_commands failed");
+		return;
+	}
+	func_arg.cmd = msg_cmd;
+
 	sql.display_emails(m_pool, func_arg)
 		.then(response => {
 			res.status(200).send(response);
@@ -116,6 +191,9 @@ app.post('/api/send-data', (req, res) => {
 
 app.get('/', (req, res) => {
 	console.log("in / function");
+	console.log("********************************************************");
+	//res.status(200).send("Hello from the backend!");
+	
 	sql.display_emails(m_pool, m_command, m_first, m_last, m_eid_list)
 		.then(response => {
 			res.status(200).send(response);
@@ -124,6 +202,7 @@ app.get('/', (req, res) => {
 			err_disp(error);
 			res.status(500).send(error);
 		})
+	
 });
 
 function load_pool() {
@@ -142,8 +221,10 @@ function load_pool() {
 	return 1;
 }
 
-app.listen(port, () => {
+app.listen(3001, () => {
+
+//https.createServer(options, app).listen(3001, () => {
 	if (! load_pool()) 
 		err("Could not load data for the database connection.");
-	console.log(`App running on port ${port}.`)
+	console.log("App running on port 3001")
 });

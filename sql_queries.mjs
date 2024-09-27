@@ -59,6 +59,17 @@ const display_contacts = () => {
 	})
 }
 
+const display_sms = () => {
+	return new Promise(function(resolve, reject) {
+		pool.query('SELECT mid, readable_date, phone, type FROM sms_message ORDER BY mid desc limit 70', (error, results) => {
+			if (error) {
+				reject(error)
+			}
+			resolve(results.rows);
+		})
+	})
+}
+
 function is_date_valid(q) {
 	let count = 0;
 	if (!q || q.length < 10)
@@ -73,7 +84,7 @@ function is_date_valid(q) {
 
 // predicate pci_dev_present() 1 if found, 0 if not
 
-function build_prev_next(cmd, first, last, r_query) {
+function build_prev_next(cmd, eid_first, eid_last, r_query) {
 	if (r_query.where_flag) {
 		r_query.qstr += " AND ";
 	} else {
@@ -81,13 +92,16 @@ function build_prev_next(cmd, first, last, r_query) {
 		r_query.where_flag = 1;
 	}
 	if (cmd === "prev") {
-		if (!is_date_valid(last))
-			return err_set("date is invalid: "+last);
-		r_query.qstr += "received <= '"+last+"'";
+		//if (!is_date_valid(last))
+		//	return err_set("date is invalid: "+last);
+		r_query.qstr += "eid < '"+eid_last+"'";
 	} else {
-		if (!is_date_valid(first))
-			return err_append("date is invalid: "+first);
-		r_query.qstr += "received >= '"+first+"'";
+		//if (!is_date_valid(first))
+		//	return err_append("date is invalid: "+first);
+		//db_query.qstr += " eid < "+eid_list;
+		//r_query.qstr += "received >= '"+first+"'";
+
+		r_query.qstr += "eid > '"+eid_first+"'";
 	}
 	return 0;
 }
@@ -127,9 +141,11 @@ async function display_emails(pool, func_arg) {
 
 		//cmd, to, from, subject, date_start, date_end, first, last, eid_list
 
+		console.log("   in sql functiom, cmd: *"+cmd+"*");
+
 		if (cmd === "") {
 			return;
-		} else if (cmd === "select email") {
+		} else if (cmd === "select") {
 			console.log("command: select email");
 
 			db_query.qstr = "select em_from, em_to, em_subject, received at time zone \'UTC\' at time zone \'America/New_York\' as received, em_body from email_message where eid='"+eid_list+"'";
@@ -143,9 +159,6 @@ async function display_emails(pool, func_arg) {
 
 			return results.rows;
 
-		} else if (cmd === "select message") {
-			console.log("command: select message");
-			return;
 		} else {
 			db_query.qstr = "select eid as id, em_from as from, em_to as to, em_subject as subject, received at time zone \'UTC\' at time zone \'America/New_York\' as received from email_message";
 		}
@@ -232,10 +245,10 @@ select sms_message.mid, sms_message.phone as from, email_message.em_to as to, sm
 		}
 		
 		if (cmd === "next") {
-			db_query.qstr +=" order by received asc limit 70";
+			db_query.qstr +=" order by eid asc limit 70";
 					console.log("next");
 		} else {
-			db_query.qstr +=" order by received desc limit 70";
+			db_query.qstr +=" order by eid desc limit 70";
 					console.log("cur/prev");
 		}
 
@@ -247,6 +260,8 @@ select sms_message.mid, sms_message.phone as from, email_message.em_to as to, sm
 		console.log(" ");
 
 		let results = await pool.query(db_query.qstr);
+
+		console.log("sql query gave: "+results.rows.length+" rows");
 
 		return results.rows;
 
